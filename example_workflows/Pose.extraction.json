@@ -1,0 +1,604 @@
+{
+  "id": "6d0c8c7c-c89e-4da4-9bb6-6adc885c0304",
+  "revision": 0,
+  "last_node_id": 16,
+  "last_link_id": 21,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2835.13232421875,
+        3194.075927734375
+      ],
+      "size": [
+        529.3589477539062,
+        857.3589477539062
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 5
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "1.6.1",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 25,
+        "loop_count": 0,
+        "filename_prefix": "preprocess/face",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 20,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "face_00042.mp4",
+            "subfolder": "preprocess",
+            "type": "output",
+            "format": "video/nvenc_h264-mp4",
+            "frame_rate": 25,
+            "workflow": "face_00042.png",
+            "fullpath": "V:\\ComfyUI_windows_portable\\ComfyUI\\output\\preprocess\\face_00042.mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "GetImageSizeAndCount",
+      "pos": [
+        1647.9271240234375,
+        3106.2919921875
+      ],
+      "size": [
+        190.86483764648438,
+        86
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            2
+          ]
+        },
+        {
+          "label": "1920 width",
+          "name": "width",
+          "type": "INT",
+          "links": [
+            3,
+            7
+          ]
+        },
+        {
+          "label": "1080 height",
+          "name": "height",
+          "type": "INT",
+          "links": [
+            4,
+            8
+          ]
+        },
+        {
+          "label": "71 count",
+          "name": "count",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "bb205d809b467307b8ec3bb1a22680a4873187f8",
+        "Node name for S&R": "GetImageSizeAndCount"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2811.0908203125,
+        4288.9169921875
+      ],
+      "size": [
+        529.3589477539062,
+        634.514404296875
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "1.6.1",
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 25,
+        "loop_count": 0,
+        "filename_prefix": "preprocess/poseVIT",
+        "format": "video/nvenc_h264-mp4",
+        "pix_fmt": "yuv420p",
+        "bitrate": 20,
+        "megabit": true,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "poseVIT_00012.mp4",
+            "subfolder": "preprocess",
+            "type": "output",
+            "format": "video/nvenc_h264-mp4",
+            "frame_rate": 25,
+            "workflow": "poseVIT_00012.png",
+            "fullpath": "V:\\ComfyUI_windows_portable\\ComfyUI\\output\\preprocess\\poseVIT_00012.mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "DrawViTPose",
+      "pos": [
+        2365.894287109375,
+        3896.76318359375
+      ],
+      "size": [
+        270,
+        202
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pose_data",
+          "type": "POSEDATA",
+          "link": 6
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 7
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pose_images",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WanAnimatePreprocess",
+        "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
+        "Node name for S&R": "DrawViTPose",
+        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess"
+      },
+      "widgets_values": [
+        832,
+        480,
+        0,
+        -1,
+        -1,
+        "True",
+        0.4
+      ]
+    },
+    {
+      "id": 2,
+      "type": "OnnxDetectionModelLoader",
+      "pos": [
+        1602.538818359375,
+        3429.75927734375
+      ],
+      "size": [
+        351.52410888671875,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "POSEMODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WanAnimatePreprocess",
+        "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
+        "Node name for S&R": "OnnxDetectionModelLoader",
+        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess"
+      },
+      "widgets_values": [
+        "vitpose_h_wholebody_model.onnx",
+        "yolov10m.onnx",
+        "CUDAExecutionProvider"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "PoseAndFaceDetection",
+      "pos": [
+        2158.1171875,
+        3393.5830078125
+      ],
+      "size": [
+        313.125,
+        402
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "POSEMODEL",
+          "link": 1
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 4
+        },
+        {
+          "name": "retarget_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pose_data",
+          "type": "POSEDATA",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "face_images",
+          "type": "IMAGE",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "key_frame_body_points",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "bboxes",
+          "type": "BBOX",
+          "links": []
+        },
+        {
+          "name": "face_bboxes",
+          "type": "BBOX,",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WanAnimatePreprocess",
+        "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
+        "Node name for S&R": "PoseAndFaceDetection",
+        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess"
+      },
+      "widgets_values": [
+        832,
+        480,
+        0.05,
+        0.3,
+        true,
+        true,
+        5,
+        2,
+        true,
+        0.9,
+        true,
+        224
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VHS_LoadVideo",
+      "pos": [
+        1175.4361572265625,
+        3155.457275390625
+      ],
+      "size": [
+        247.455078125,
+        451.9747314453125
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": null
+        },
+        {
+          "name": "video_info",
+          "type": "VHS_VIDEOINFO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-videohelpersuite",
+        "ver": "1.6.1",
+        "Node name for S&R": "VHS_LoadVideo"
+      },
+      "widgets_values": {
+        "video": "Subject_00001.mp4",
+        "force_rate": 25,
+        "custom_width": 0,
+        "custom_height": 0,
+        "frame_load_cap": 0,
+        "skip_first_frames": 0,
+        "select_every_nth": 1,
+        "format": "AnimateDiff",
+        "choose video to upload": "image",
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "Subject_00001.mp4",
+            "type": "input",
+            "format": "video/mp4",
+            "force_rate": 25,
+            "custom_width": 0,
+            "custom_height": 0,
+            "frame_load_cap": 0,
+            "skip_first_frames": 0,
+            "select_every_nth": 1
+          }
+        }
+      }
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "POSEMODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      1,
+      "IMAGE"
+    ],
+    [
+      3,
+      1,
+      1,
+      3,
+      2,
+      "INT"
+    ],
+    [
+      4,
+      1,
+      2,
+      3,
+      3,
+      "INT"
+    ],
+    [
+      5,
+      3,
+      1,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      6,
+      3,
+      0,
+      5,
+      0,
+      "POSEDATA"
+    ],
+    [
+      7,
+      1,
+      1,
+      5,
+      1,
+      "INT"
+    ],
+    [
+      8,
+      1,
+      2,
+      5,
+      2,
+      "INT"
+    ],
+    [
+      9,
+      5,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      8,
+      0,
+      1,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8264462809917354,
+      "offset": [
+        -1120.105575083288,
+        -2846.8471857477957
+      ]
+    },
+    "frontendVersion": "1.26.13",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
