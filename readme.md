@@ -1,5 +1,8 @@
-## ComfyUI helper nodes for [Wan video 2.2 Animate preprocessing](https://github.com/Wan-Video/Wan2.2/tree/main/wan/modules/animate/preprocess)
+## THIS IS FROM THE GITHUB ISSUE #1410 of WanVideoPreProccessor and Improved pose and face detection `#10` issue of WanAnimatePreProcessor
 
+Special thanks to [@kijai](https://github.com/kijai) and [@steven850](https://github.com/steven850)
+
+## ComfyUI helper nodes for [Wan video 2.2 Animate preprocessing](https://github.com/Wan-Video/Wan2.2/tree/main/wan/modules/animate/preprocess)
 
 Nodes to run the ViTPose model, get face crops and keypoint list for SAM2 segmentation.
 
