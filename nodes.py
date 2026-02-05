@@ -42,7 +42,7 @@ def preprocess_for_pose(img, use_clahe=True):
 # ---------------------------------------------------
 # ONNX model loader
 # ---------------------------------------------------
-class OnnxDetectionModelLoader:
+class OnnxDetectionModelLoaderV2:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -56,7 +56,7 @@ class OnnxDetectionModelLoader:
     RETURN_TYPES = ("POSEMODEL",)
     RETURN_NAMES = ("model", )
     FUNCTION = "loadmodel"
-    CATEGORY = "WanAnimatePreprocess"
+    CATEGORY = "WanAnimatePreprocess_V2"
 
     def loadmodel(self, vitpose_model, yolo_model, onnx_device):
         vitpose_model_path = folder_paths.get_full_path_or_raise("detection", vitpose_model)
@@ -69,7 +69,7 @@ class OnnxDetectionModelLoader:
 # ---------------------------------------------------
 # Pose and Face Detection
 # ---------------------------------------------------
-class PoseAndFaceDetection:
+class PoseAndFaceDetectionV2:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -97,7 +97,7 @@ class PoseAndFaceDetection:
     RETURN_TYPES = ("POSEDATA", "IMAGE", "STRING", "BBOX", "BBOX,")
     RETURN_NAMES = ("pose_data", "face_images", "key_frame_body_points", "bboxes", "face_bboxes")
     FUNCTION = "process"
-    CATEGORY = "WanAnimatePreprocess"
+    CATEGORY = "WanAnimatePreprocess_V2"
 
     def process(
         self,
@@ -310,7 +310,7 @@ class PoseAndFaceDetection:
 # ---------------------------------------------------
 # Draw ViTPose
 # ---------------------------------------------------
-class DrawViTPose:
+class DrawViTPoseV2:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -329,7 +329,7 @@ class DrawViTPose:
     RETURN_TYPES = ("IMAGE", )
     RETURN_NAMES = ("pose_images", )
     FUNCTION = "process"
-    CATEGORY = "WanAnimatePreprocess"
+    CATEGORY = "WanAnimatePreprocess_V2"
 
     def process(self, pose_data, width, height, body_stick_width, hand_stick_width, draw_head, pose_draw_threshold, retarget_padding=64):
         pose_metas = pose_data["pose_metas"]
@@ -362,13 +362,13 @@ class DrawViTPose:
 
 
 NODE_CLASS_MAPPINGS = {
-    "OnnxDetectionModelLoader": OnnxDetectionModelLoader,
-    "PoseAndFaceDetection": PoseAndFaceDetection,
-    "DrawViTPose": DrawViTPose,
+    "OnnxDetectionModelLoaderV2": OnnxDetectionModelLoaderV2,
+    "PoseAndFaceDetectionV2": PoseAndFaceDetectionV2,
+    "DrawViTPoseV2": DrawViTPoseV2,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "OnnxDetectionModelLoader": "ONNX Detection Model Loader",
-    "PoseAndFaceDetection": "Pose and Face Detection",
-    "Draw ViT Pose": "Draw ViT Pose",
+    "OnnxDetectionModelLoaderV2": "ONNX Detection Model Loader (V2)",
+    "PoseAndFaceDetectionV2": "Pose and Face Detection (V2)",
+    "DrawViTPoseV2": "Draw ViT Pose (V2)",
 }
