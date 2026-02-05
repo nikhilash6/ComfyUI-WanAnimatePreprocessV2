@@ -78,8 +78,8 @@ class PoseAndFaceDetectionV2:
                 "images": ("IMAGE",),
                 "width": ("INT", {"default": 832, "min": 64, "max": 2048}),
                 "height": ("INT", {"default": 480, "min": 64, "max": 2048}),
-                "detection_threshold": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0}),
-                "pose_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0}),
+                "detection_threshold": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "pose_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
                 # Enhancement options
                 "use_clahe": ("BOOLEAN", {"default": True, "tooltip": "Apply CLAHE contrast enhancement for pose detection."}),
                 "use_blur_for_pose": ("BOOLEAN", {"default": True, "tooltip": "Apply Gaussian blur internally for YOLO and ViTPose."}),
@@ -322,7 +322,7 @@ class DrawViTPoseV2:
                 "body_stick_width": ("INT", {"default": -1, "min": -1, "max": 20}),
                 "hand_stick_width": ("INT", {"default": -1, "min": -1, "max": 20}),
                 "draw_head": ("BOOLEAN", {"default": "True"}),
-                "pose_draw_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0}),
+                "pose_draw_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
             },
         }
 
