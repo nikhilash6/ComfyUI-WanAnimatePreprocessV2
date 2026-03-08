@@ -1005,7 +1005,7 @@
     },
     {
       "id": 178,
-      "type": "OnnxDetectionModelLoader",
+      "type": "OnnxDetectionModelLoaderV2",
       "pos": [
         -506.44635009765625,
         -2398.935302734375
@@ -1028,7 +1028,7 @@
         }
       ],
       "properties": {
-        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess",
+        "aux_id": "likhith-24/ComfyUI-WanAnimatePreprocessV2",
         "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
         "Node name for S&R": "OnnxDetectionModelLoader"
       },
@@ -1284,7 +1284,7 @@
     },
     {
       "id": 173,
-      "type": "DrawViTPose",
+      "type": "DrawViTPoseV2",
       "pos": [
         120.56317138671875,
         -2811.226318359375
@@ -1329,7 +1329,7 @@
         }
       ],
       "properties": {
-        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess",
+        "aux_id": "likhith-24/ComfyUI-WanAnimatePreprocessV2",
         "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
         "Node name for S&R": "DrawViTPose"
       },
@@ -1659,7 +1659,7 @@
     },
     {
       "id": 172,
-      "type": "PoseAndFaceDetection",
+      "type": "PoseAndFaceDetectionV2",
       "pos": [
         104.5530014038086,
         -3028.416015625
@@ -1734,7 +1734,7 @@
         }
       ],
       "properties": {
-        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess",
+        "aux_id": "likhith-24/ComfyUI-WanAnimatePreprocessV2",
         "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
         "Node name for S&R": "PoseAndFaceDetection"
       },
@@ -1937,7 +1937,7 @@
       "title": "Preprocessor links",
       "properties": {},
       "widgets_values": [
-        "Nodes:\n\n[https://github.com/kijai/ComfyUI-WanAnimatePreprocess](https://github.com/kijai/ComfyUI-WanAnimatePreprocess)\n\nModels:\n\nYOLO:\n\n[https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/blob/main/process_checkpoint/det/yolov10m.onnx](https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/blob/main/process_checkpoint/det/yolov10m.onnx)\n\nViTPose\n\nLarge:\n\n[https://huggingface.co/JunkyByte/easy_ViTPose/blob/main/onnx/wholebody/vitpose-l-wholebody.onnx](https://huggingface.co/JunkyByte/easy_ViTPose/blob/main/onnx/wholebody/vitpose-l-wholebody.onnx)\n\nHuge (needs both files):\n\n[https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_model.onnx](https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_model.onnx)\n\n[https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_data.bin](https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_data.bin)"
+        "Nodes:\n\n[https://github.com/likhith-24/ComfyUI-WanAnimatePreprocessV2](https://github.com/likhith-24/ComfyUI-WanAnimatePreprocessV2)\n\nModels:\n\nYOLO:\n\n[https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/blob/main/process_checkpoint/det/yolov10m.onnx](https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/blob/main/process_checkpoint/det/yolov10m.onnx)\n\nViTPose\n\nLarge:\n\n[https://huggingface.co/JunkyByte/easy_ViTPose/blob/main/onnx/wholebody/vitpose-l-wholebody.onnx](https://huggingface.co/JunkyByte/easy_ViTPose/blob/main/onnx/wholebody/vitpose-l-wholebody.onnx)\n\nHuge (needs both files):\n\n[https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_model.onnx](https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_model.onnx)\n\n[https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_data.bin](https://huggingface.co/Kijai/vitpose_comfy/blob/main/onnx/vitpose_h_wholebody_data.bin)"
       ],
       "color": "#432",
       "bgcolor": "#653"

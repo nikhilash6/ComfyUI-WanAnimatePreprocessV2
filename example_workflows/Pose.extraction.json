@@ -221,7 +221,7 @@
     },
     {
       "id": 5,
-      "type": "DrawViTPose",
+      "type": "DrawViTPoseV2",
       "pos": [
         2365.894287109375,
         3896.76318359375
@@ -266,10 +266,10 @@
         }
       ],
       "properties": {
-        "cnr_id": "ComfyUI-WanAnimatePreprocess",
+        "cnr_id": "ComfyUI-WanAnimatePreprocessV2",
         "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
         "Node name for S&R": "DrawViTPose",
-        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess"
+        "aux_id": "likhith-24/ComfyUI-WanAnimatePreprocessV2"
       },
       "widgets_values": [
         832,
@@ -283,7 +283,7 @@
     },
     {
       "id": 2,
-      "type": "OnnxDetectionModelLoader",
+      "type": "OnnxDetectionModelLoaderV2",
       "pos": [
         1602.538818359375,
         3429.75927734375
@@ -306,10 +306,10 @@
         }
       ],
       "properties": {
-        "cnr_id": "ComfyUI-WanAnimatePreprocess",
+        "cnr_id": "ComfyUI-WanAnimatePreprocessV2",
         "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
         "Node name for S&R": "OnnxDetectionModelLoader",
-        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess"
+        "aux_id": "likhith-24/ComfyUI-WanAnimatePreprocessV2"
       },
       "widgets_values": [
         "vitpose_h_wholebody_model.onnx",
@@ -319,7 +319,7 @@
     },
     {
       "id": 3,
-      "type": "PoseAndFaceDetection",
+      "type": "PoseAndFaceDetectionV2",
       "pos": [
         2158.1171875,
         3393.5830078125
@@ -397,10 +397,10 @@
         }
       ],
       "properties": {
-        "cnr_id": "ComfyUI-WanAnimatePreprocess",
+        "cnr_id": "ComfyUI-WanAnimatePreprocessV2",
         "ver": "e63d6e71ae4c271f3f81211a7ca7f87607b7e50d",
         "Node name for S&R": "PoseAndFaceDetection",
-        "aux_id": "kijai/ComfyUI-WanAnimatePreprocess"
+        "aux_id": "likhith-24/ComfyUI-WanAnimatePreprocessV2"
       },
       "widgets_values": [
         832,
