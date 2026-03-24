@@ -1,7 +1,7 @@
 [project]
 name = "ComfyUI-WanAnimatePreprocessV2"
 description = "Improved Pose & Face Detection for Wan Video 2.2 Animate based on GitHub Issue #1410 (WanVideoPreProcessor) and #10 (WanAnimatePreProcessor). (Special thanks: @kijai and @steven850)"
-version = "1.0.3"
+version = "1.0.4"
 license = {file = "LICENSE"}
 dependencies = ["opencv-python", "onnxruntime-gpu", "onnx"]
 
