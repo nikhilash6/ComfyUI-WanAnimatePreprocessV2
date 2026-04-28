@@ -9,6 +9,197 @@ import logging
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
+# ---------------------------------------------------
+# Optional MediaPipe Face Mesh (graceful fallback)
+# ---------------------------------------------------
+# MediaPipe provides 478 facial landmarks (468 mesh + 10 iris when
+# refine_landmarks=True). It dramatically improves iris/lip tracking
+# fidelity compared to the 68-point ViTPose face output and the custom
+# OpenCV pupil voter. If `mediapipe` is not installed, the pipeline
+# transparently falls back to the legacy ViTPose + `_find_pupil_center`
+# code path and keeps working.
+try:
+    import mediapipe as _mp
+    _MP_AVAILABLE = True
+except Exception as _mp_err:  # ImportError or runtime DLL issues
+    _mp = None
+    _MP_AVAILABLE = False
+    logging.getLogger(__name__).info(
+        "MediaPipe not available, falling back to ViTPose-only face pipeline (%s)",
+        _mp_err,
+    )
+
+# Module-level FaceMesh handle (lazily constructed, reused across frames).
+_MP_FACE_MESH = None
+
+
+def _get_mp_face_mesh():
+    """Lazily construct a single static-image FaceMesh with iris refinement."""
+    global _MP_FACE_MESH
+    if not _MP_AVAILABLE:
+        return None
+    if _MP_FACE_MESH is None:
+        _MP_FACE_MESH = _mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=True,
+            max_num_faces=1,
+            refine_landmarks=True,   # enables 10 iris landmarks (468-477)
+            min_detection_confidence=0.3,
+            min_tracking_confidence=0.3,
+        )
+    return _MP_FACE_MESH
+
+
+# ---------------------------------------------------
+# MediaPipe -> dlib 68 landmark mapping
+# ---------------------------------------------------
+# Wan 2.x face conditioning consumes the standard 68-point dlib layout
+# (slotted into face_kps[1:69]; face_kps[0] is the body-anchored face
+# centre coming from ViTPose). We slice the 478 MediaPipe FaceMesh
+# vertices to reconstruct that exact ordering, so existing limbSeq /
+# `draw_aapose_by_meta_new` visualisation and the Wan pose encoder keep
+# working without modification.
+#
+# Layout (68 = 17+5+5+4+5+6+6+12+8):
+#   0-16  jawline (right ear -> chin -> left ear)
+#   17-21 right eyebrow
+#   22-26 left eyebrow
+#   27-30 nose bridge (top -> tip)
+#   31-35 nose bottom (right nostril -> tip -> left nostril)
+#   36-41 right eye  (outer, upper-outer, upper-inner, inner, lower-inner, lower-outer)
+#   42-47 left eye
+#   48-59 outer lip (12 pts, clockwise from right corner)
+#   60-67 inner lip (8 pts, clockwise from right corner)
+MP_TO_DLIB68 = [
+    # Jaw 0-16
+    127, 234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152,
+    377, 400, 378, 379, 365,
+    # Right eyebrow 17-21
+    70, 63, 105, 66, 107,
+    # Left eyebrow 22-26
+    336, 296, 334, 293, 300,
+    # Nose bridge 27-30
+    168, 6, 197, 195,
+    # Nose bottom 31-35
+    115, 220, 4, 440, 344,
+    # Right eye 36-41
+    33, 160, 158, 133, 153, 144,
+    # Left eye 42-47
+    362, 385, 387, 263, 373, 380,
+    # Outer lip 48-59
+    61, 39, 37, 0, 267, 269, 291, 405, 314, 17, 84, 181,
+    # Inner lip 60-67
+    78, 81, 13, 311, 308, 402, 14, 178,
+]
+assert len(MP_TO_DLIB68) == 68, "MP -> dlib mapping must define exactly 68 indices"
+
+# Iris landmarks (only present when refine_landmarks=True).
+MP_RIGHT_IRIS_CENTER = 468
+MP_LEFT_IRIS_CENTER = 473
+MP_RIGHT_IRIS_RING = [469, 470, 471, 472]
+MP_LEFT_IRIS_RING = [474, 475, 476, 477]
+
+# Inner-lip indices used for "openness" (mouth aspect ratio).
+# Vertical opening: top-inner (13) <-> bottom-inner (14).
+# Horizontal width: right inner corner (78) <-> left inner corner (308).
+MP_INNER_LIP_TOP = 13
+MP_INNER_LIP_BOTTOM = 14
+MP_INNER_LIP_RIGHT = 78
+MP_INNER_LIP_LEFT = 308
+
+
+def mediapipe_to_dlib_68(mp_landmarks_xy):
+    """Slice the 478-point MediaPipe array down to the 68-point dlib layout.
+
+    Args:
+        mp_landmarks_xy: (478, 2) ndarray of (x, y) coordinates in any
+            consistent space (normalised or pixel).
+
+    Returns:
+        (68, 2) ndarray in the same coordinate space, ordered exactly as
+        dlib's 68-point shape predictor expects.
+    """
+    return mp_landmarks_xy[MP_TO_DLIB68].copy()
+
+
+def _run_mediapipe_on_face_crop(face_crop_rgb_uint8, crop_origin_xy, crop_size_wh,
+                                  full_w, full_h):
+    """Run MediaPipe FaceMesh on a single face crop.
+
+    Args:
+        face_crop_rgb_uint8: (h, w, 3) uint8 RGB face crop.
+        crop_origin_xy:      (x1, y1) origin of the crop in the full image.
+        crop_size_wh:        (cw, ch) pixel size of the crop.
+        full_w, full_h:      full image pixel dimensions.
+
+    Returns:
+        dict with:
+            - 'kps68_norm'  (68, 3) [x/W, y/H, conf=1.0] in *full image* normalised space
+            - 'right_iris_px', 'left_iris_px': (x, y) in full image pixel space
+            - 'right_iris_radius_px', 'left_iris_radius_px': float
+            - 'lip_openness_ratio': float (vertical inner-lip / inner-lip width)
+        Or None if MediaPipe failed to detect a face.
+    """
+    fm = _get_mp_face_mesh()
+    if fm is None or face_crop_rgb_uint8 is None or face_crop_rgb_uint8.size == 0:
+        return None
+
+    try:
+        results = fm.process(face_crop_rgb_uint8)
+    except Exception:
+        return None
+    if not results.multi_face_landmarks:
+        return None
+
+    lms = results.multi_face_landmarks[0].landmark
+    if len(lms) < 478:
+        # Iris landmarks missing - refine_landmarks must have been disabled
+        # at build time (e.g. older mediapipe). Treat as failure so we use
+        # the fallback path that includes iris voting.
+        return None
+
+    cx0, cy0 = crop_origin_xy
+    cw, ch = crop_size_wh
+
+    # MediaPipe gives normalised coords [0, 1] relative to the crop.
+    pts_px = np.zeros((len(lms), 2), dtype=np.float32)
+    for i, lm in enumerate(lms):
+        pts_px[i, 0] = lm.x * cw + cx0
+        pts_px[i, 1] = lm.y * ch + cy0
+
+    # Build the 68-point array in *full image* normalised space, with
+    # confidence forced to 1.0 (MediaPipe doesn't expose per-point conf).
+    kps68_px = pts_px[MP_TO_DLIB68]
+    kps68_norm = np.zeros((68, 3), dtype=np.float32)
+    kps68_norm[:, 0] = kps68_px[:, 0] / max(full_w, 1)
+    kps68_norm[:, 1] = kps68_px[:, 1] / max(full_h, 1)
+    kps68_norm[:, 2] = 1.0
+
+    # Iris centres (full image pixel space)
+    r_iris = pts_px[MP_RIGHT_IRIS_CENTER]
+    l_iris = pts_px[MP_LEFT_IRIS_CENTER]
+    r_ring = pts_px[MP_RIGHT_IRIS_RING]
+    l_ring = pts_px[MP_LEFT_IRIS_RING]
+    r_radius = float(np.mean(np.linalg.norm(r_ring - r_iris[None, :], axis=1)))
+    l_radius = float(np.mean(np.linalg.norm(l_ring - l_iris[None, :], axis=1)))
+
+    # Lip openness ratio (inner-lip MAR)
+    top = pts_px[MP_INNER_LIP_TOP]
+    bot = pts_px[MP_INNER_LIP_BOTTOM]
+    rgt = pts_px[MP_INNER_LIP_RIGHT]
+    lft = pts_px[MP_INNER_LIP_LEFT]
+    v = float(np.linalg.norm(top - bot))
+    h = float(np.linalg.norm(rgt - lft))
+    lip_ratio = float(v / h) if h > 1e-6 else 0.0
+
+    return {
+        'kps68_norm': kps68_norm,
+        'right_iris_px': (float(r_iris[0]), float(r_iris[1])),
+        'left_iris_px': (float(l_iris[0]), float(l_iris[1])),
+        'right_iris_radius_px': r_radius,
+        'left_iris_radius_px': l_radius,
+        'lip_openness_ratio': lip_ratio,
+    }
+
 from comfy import model_management as mm
 from comfy.utils import ProgressBar
 device = mm.get_torch_device()
@@ -489,11 +680,13 @@ class PoseAndFaceDetectionV2:
                 # Iris estimation
                 "use_iris_smoothing": ("BOOLEAN", {"default": True, "tooltip": "Temporally smooth iris positions across frames."}),
                 "iris_smoothing_strength": ("FLOAT", {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.05, "tooltip": "Higher = more temporal smoothing for iris."}),
+                # MediaPipe face mesh (high-fidelity iris/lip tracking, falls back to ViTPose if unavailable)
+                "use_mediapipe_face": ("BOOLEAN", {"default": True, "tooltip": "Use MediaPipe FaceMesh (478 pts incl. iris/lips) to override face landmarks. Falls back to ViTPose pupil voting if MediaPipe is missing or fails on a frame."}),
             },
         }
 
-    RETURN_TYPES = ("POSEDATA", "IMAGE", "STRING", "BBOX", "BBOX", "STRING", "IMAGE")
-    RETURN_NAMES = ("pose_data", "face_images", "key_frame_body_points", "bboxes", "face_bboxes", "iris_data", "debug_image")
+    RETURN_TYPES = ("POSEDATA", "IMAGE", "STRING", "BBOX", "BBOX", "STRING", "IMAGE", "STRING", "STRING", "FLOAT")
+    RETURN_NAMES = ("pose_data", "face_images", "key_frame_body_points", "bboxes", "face_bboxes", "iris_data", "debug_image", "right_pupil_xy", "left_pupil_xy", "lip_openness_ratio")
     FUNCTION = "process"
     CATEGORY = "WanAnimatePreprocess_V2"
 
@@ -515,6 +708,7 @@ class PoseAndFaceDetectionV2:
         face_box_size_px,
         use_iris_smoothing,
         iris_smoothing_strength,
+        use_mediapipe_face=True,
     ):
         detector = model["yolo"]
         pose_model = model["vitpose"]
@@ -705,11 +899,67 @@ class PoseAndFaceDetectionV2:
 
         # --- Iris estimation (image-based pupil detection) ---
         all_iris = []
+        all_lip_ratios = []
+        mp_enabled = bool(use_mediapipe_face) and _MP_AVAILABLE
+        mp_used_count = 0
         for idx, meta in enumerate(pose_metas):
-            iris_result = estimate_iris_positions(
-                meta['keypoints_face'], images_np[idx], W, H,
+            mp_result = None
+            if mp_enabled:
+                x1, x2, y1, y2 = face_bboxes[idx]
+                cw, ch = x2 - x1, y2 - y1
+                if cw > 8 and ch > 8:
+                    crop_rgb = (np.clip(images_np[idx][y1:y2, x1:x2], 0, 1) * 255).astype(np.uint8)
+                    mp_result = _run_mediapipe_on_face_crop(
+                        crop_rgb, (x1, y1), (cw, ch), W, H,
+                    )
+
+            if mp_result is not None:
+                mp_used_count += 1
+                # Override face_kps[1:69] with MediaPipe-derived 68 landmarks
+                # (face_kps[0] is the body-anchored face anchor from ViTPose;
+                # leave it intact so Wan's pose encoder keeps its global hook).
+                face_kps = meta['keypoints_face']
+                if face_kps.shape[0] >= 69:
+                    face_kps[1:69, :] = mp_result['kps68_norm']
+                    meta['keypoints_face'] = face_kps
+
+                rix, riy = mp_result['right_iris_px']
+                lix, liy = mp_result['left_iris_px']
+                iris_result = {
+                    'right_iris': {'x': rix, 'y': riy, 'confidence': 1.0,
+                                    'radius': mp_result['right_iris_radius_px']},
+                    'left_iris':  {'x': lix, 'y': liy, 'confidence': 1.0,
+                                    'radius': mp_result['left_iris_radius_px']},
+                }
+                # Gaze vector: iris offset from eye geometric centre, normalised
+                kps_px_local = meta['keypoints_face'][:, :2] * np.array([W, H])
+                for eye_name, iris_xy, eye_idx in (
+                    ('right', (rix, riy), _RIGHT_EYE_IDX),
+                    ('left',  (lix, liy), _LEFT_EYE_IDX),
+                ):
+                    geo = np.mean(kps_px_local[eye_idx], axis=0)
+                    dx = iris_xy[0] - float(geo[0])
+                    dy = iris_xy[1] - float(geo[1])
+                    norm = max(np.hypot(dx, dy), 1e-6)
+                    iris_result[f'{eye_name}_gaze'] = {
+                        'dx': round(dx / norm, 4),
+                        'dy': round(dy / norm, 4),
+                    }
+                all_iris.append(iris_result)
+                all_lip_ratios.append(float(mp_result['lip_openness_ratio']))
+            else:
+                # Fallback: legacy ViTPose + image-based pupil voter
+                iris_result = estimate_iris_positions(
+                    meta['keypoints_face'], images_np[idx], W, H,
+                )
+                all_iris.append(iris_result)
+                all_lip_ratios.append(0.0)
+
+        if mp_enabled:
+            logging.getLogger(__name__).info(
+                "MediaPipe FaceMesh succeeded on %d/%d frames (%.1f%%)",
+                mp_used_count, B, 100.0 * mp_used_count / max(B, 1),
             )
-            all_iris.append(iris_result)
 
         # --- Temporal smoothing for iris positions ---
         if use_iris_smoothing and len(all_iris) > 1:
@@ -733,12 +983,14 @@ class PoseAndFaceDetectionV2:
                 'left_iris': iris.get('left_iris'),
                 'right_gaze': iris.get('right_gaze'),
                 'left_gaze': iris.get('left_gaze'),
+                'lip_openness_ratio': all_lip_ratios[idx] if idx < len(all_lip_ratios) else 0.0,
             })
 
         pose_data = {
             "pose_metas": retarget_pose_metas,
             "pose_metas_original": pose_metas,
             "iris_data": all_iris,
+            "lip_openness_ratios": all_lip_ratios,
         }
 
         # --- Debug visualisation ---
@@ -757,7 +1009,29 @@ class PoseAndFaceDetectionV2:
         debug_np = np.stack(debug_frames, 0).astype(np.float32) / 255.0
         debug_tensor = torch.from_numpy(debug_np)
 
-        return (pose_data, face_images_tensor, json.dumps(points_dict_list), [bbox_ints], face_bboxes, json.dumps(iris_output), debug_tensor)
+        # --- Aggregate per-frame eye/lip outputs ---
+        right_pupil_seq = [
+            [round(it['right_iris']['x'], 3), round(it['right_iris']['y'], 3)]
+            for it in all_iris
+        ]
+        left_pupil_seq = [
+            [round(it['left_iris']['x'], 3), round(it['left_iris']['y'], 3)]
+            for it in all_iris
+        ]
+        mean_lip_openness = float(np.mean(all_lip_ratios)) if all_lip_ratios else 0.0
+
+        return (
+            pose_data,
+            face_images_tensor,
+            json.dumps(points_dict_list),
+            [bbox_ints],
+            face_bboxes,
+            json.dumps(iris_output),
+            debug_tensor,
+            json.dumps(right_pupil_seq),
+            json.dumps(left_pupil_seq),
+            mean_lip_openness,
+        )
 
 
 # ---------------------------------------------------

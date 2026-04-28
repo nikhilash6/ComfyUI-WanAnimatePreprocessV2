@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-wananimatepreprocessv2"
 description = "Improved Pose & Face Detection for Wan Video 2.2 Animate based on GitHub Issue #1410 (WanVideoPreProcessor) and #10 (WanAnimatePreProcessor). (Special thanks: @kijai and @steven850)"
-version = "1.1.1"
+version = "1.2.0"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 authors = [{ name = "Likhith-24" }]
@@ -11,6 +11,7 @@ dependencies = [
     "onnx>=1.15",
     "numpy>=1.24",
     "pillow>=10.0",
+    "mediapipe>=0.10",
 ]
 
 [project.urls]
