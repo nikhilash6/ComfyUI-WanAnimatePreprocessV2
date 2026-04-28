@@ -1,12 +1,21 @@
 [project]
-name = "ComfyUI-WanAnimatePreprocessV2"
+name = "comfyui-wananimatepreprocessv2"
 description = "Improved Pose & Face Detection for Wan Video 2.2 Animate based on GitHub Issue #1410 (WanVideoPreProcessor) and #10 (WanAnimatePreProcessor). (Special thanks: @kijai and @steven850)"
-version = "1.0.4"
+version = "1.1.0"
 license = {file = "LICENSE"}
-dependencies = ["opencv-python", "onnxruntime-gpu", "onnx"]
+requires-python = ">=3.10"
+authors = [{ name = "Likhith-24" }]
+dependencies = [
+    "opencv-python>=4.8",
+    "onnxruntime-gpu>=1.16",
+    "onnx>=1.15",
+    "numpy>=1.24",
+    "pillow>=10.0",
+]
 
 [project.urls]
 Repository = "https://github.com/Likhith-24/ComfyUI-WanAnimatePreprocessV2"
+Issues = "https://github.com/Likhith-24/ComfyUI-WanAnimatePreprocessV2/issues"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
