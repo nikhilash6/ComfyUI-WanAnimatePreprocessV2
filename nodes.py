@@ -34,18 +34,48 @@ _MP_FACE_MESH = None
 
 
 def _get_mp_face_mesh():
-    """Lazily construct a single static-image FaceMesh with iris refinement."""
-    global _MP_FACE_MESH
+    """Lazily construct a single static-image FaceMesh with iris refinement.
+
+    MANUAL bug-fix (Apr 2026): mediapipe <=0.10.x's solution_base.py reads
+    ``FieldDescriptor.label`` which was removed in protobuf 5.x. That raises
+    ``AttributeError: 'google._upb._message.FieldDescriptor' object has no
+    attribute 'label'`` during ``FaceMesh()`` construction. We catch it,
+    log a clear remediation, and permanently disable mediapipe for this
+    process so the existing ViTPose-only fallback is used instead.
+    """
+    global _MP_FACE_MESH, _MP_AVAILABLE
     if not _MP_AVAILABLE:
         return None
     if _MP_FACE_MESH is None:
-        _MP_FACE_MESH = _mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            refine_landmarks=True,   # enables 10 iris landmarks (468-477)
-            min_detection_confidence=0.3,
-            min_tracking_confidence=0.3,
-        )
+        try:
+            _MP_FACE_MESH = _mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,   # enables 10 iris landmarks (468-477)
+                min_detection_confidence=0.3,
+                min_tracking_confidence=0.3,
+            )
+        except AttributeError as exc:
+            _MP_AVAILABLE = False
+            _MP_FACE_MESH = None
+            logging.getLogger(__name__).warning(
+                "MediaPipe FaceMesh init failed (%s). This is a known "
+                "mediapipe<=0.10.x vs protobuf>=5.x incompatibility. "
+                "Fix: pip install --upgrade mediapipe (>=0.10.18) OR "
+                "pip install \"protobuf<=3.20.3\". Falling back to "
+                "ViTPose-only face pipeline for the rest of this session.",
+                exc,
+            )
+            return None
+        except Exception as exc:  # noqa: BLE001 - any runtime failure -> fallback
+            _MP_AVAILABLE = False
+            _MP_FACE_MESH = None
+            logging.getLogger(__name__).warning(
+                "MediaPipe FaceMesh init failed (%s). Falling back to "
+                "ViTPose-only face pipeline for the rest of this session.",
+                exc,
+            )
+            return None
     return _MP_FACE_MESH
 
 
