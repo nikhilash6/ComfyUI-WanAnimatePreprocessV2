@@ -659,18 +659,25 @@ def draw_debug_overlay(frame_uint8, face_kps_norm, iris_data,
 # ONNX model loader
 # ---------------------------------------------------
 class OnnxDetectionModelLoaderV2:
+    DESCRIPTION = (
+        "Load ONNX ViTPose + YOLO detection models for Wan 2.2 Animate "
+        "preprocessing. Place model files in `ComfyUI/models/detection/`. "
+        "Outputs a `POSEMODEL` bundle that the detection node consumes."
+    )
+
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "vitpose_model": (folder_paths.get_filename_list("detection"), {"tooltip": "Models loaded from ComfyUI/models/detection"}),
-                "yolo_model": (folder_paths.get_filename_list("detection"), {"tooltip": "Models loaded from ComfyUI/models/detection"}),
-                "onnx_device": (["CUDAExecutionProvider", "CPUExecutionProvider"], {"default": "CUDAExecutionProvider"}),
+                "vitpose_model": (folder_paths.get_filename_list("detection"), {"tooltip": "ViTPose ONNX file (e.g. vitpose-h.onnx). Place in ComfyUI/models/detection/."}),
+                "yolo_model":    (folder_paths.get_filename_list("detection"), {"tooltip": "YOLO person-detector ONNX file. Place in ComfyUI/models/detection/."}),
+                "onnx_device":   (["CUDAExecutionProvider", "CPUExecutionProvider"], {"default": "CUDAExecutionProvider", "tooltip": "Execution provider for ONNX Runtime. CUDA is much faster; CPU is the safe fallback."}),
             },
         }
 
     RETURN_TYPES = ("POSEMODEL",)
     RETURN_NAMES = ("model", )
+    OUTPUT_TOOLTIPS = ("ViTPose+YOLO model bundle. Connect to `model` on Pose and Face Detection (V2).",)
     FUNCTION = "loadmodel"
     CATEGORY = "WanAnimatePreprocess_V2"
 
@@ -686,21 +693,27 @@ class OnnxDetectionModelLoaderV2:
 # Pose and Face Detection
 # ---------------------------------------------------
 class PoseAndFaceDetectionV2:
+    DESCRIPTION = (
+        "Run YOLO person detection + ViTPose 2D keypoints + (optional) MediaPipe "
+        "FaceMesh on a video tensor. Produces the full pose/face/iris bundle "
+        "required by Wan 2.2 Animate Character Replacement workflows."
+    )
+
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model": ("POSEMODEL",),
-                "images": ("IMAGE",),
-                "width": ("INT", {"default": 832, "min": 64, "max": 2048}),
-                "height": ("INT", {"default": 480, "min": 64, "max": 2048}),
-                "detection_threshold": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "pose_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "model":  ("POSEMODEL", {"tooltip": "From ONNX Detection Model Loader (V2)."}),
+                "images": ("IMAGE",     {"tooltip": "Video frames as an IMAGE batch (B,H,W,C float [0,1])."}),
+                "width":  ("INT", {"default": 832, "min": 64, "max": 2048, "tooltip": "Target canvas width (px) used for retarget math. Match your Wan 2.2 latent size."}),
+                "height": ("INT", {"default": 480, "min": 64, "max": 2048, "tooltip": "Target canvas height (px). Match your Wan 2.2 latent size."}),
+                "detection_threshold": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "YOLO confidence threshold. Lower = more permissive person detection."}),
+                "pose_threshold":      ("FLOAT", {"default": 0.3,  "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Per-keypoint score threshold. Below this a keypoint is treated as missing."}),
                 # Enhancement options
                 "use_clahe": ("BOOLEAN", {"default": True, "tooltip": "Apply CLAHE contrast enhancement for pose detection."}),
                 "use_blur_for_pose": ("BOOLEAN", {"default": True, "tooltip": "Apply Gaussian blur internally for YOLO and ViTPose."}),
-                "blur_radius": ("INT", {"default": 5, "min": 1, "max": 20, "step": 1}),
-                "blur_sigma": ("FLOAT", {"default": 2.0, "min": 0.1, "max": 5.0, "step": 0.1}),
+                "blur_radius": ("INT", {"default": 5, "min": 1, "max": 20, "step": 1, "tooltip": "Gaussian blur kernel radius applied to the face mask edge to soften the boundary. Higher = wider feather. Kernel size = radius*2+1 px."}),
+                "blur_sigma": ("FLOAT", {"default": 2.0, "min": 0.1, "max": 5.0, "step": 0.1, "tooltip": "Gaussian blur sigma (standard deviation) for the face mask feather. Higher sigma = softer falloff. Tune together with blur_radius."}),
                 # Face smoothing
                 "use_face_smoothing": ("BOOLEAN", {"default": True, "tooltip": "Smooth face bounding box center over time."}),
                 "face_smoothing_strength": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.05, "tooltip": "Higher = more smoothing"}),
@@ -717,6 +730,18 @@ class PoseAndFaceDetectionV2:
 
     RETURN_TYPES = ("POSEDATA", "IMAGE", "STRING", "BBOX", "BBOX", "STRING", "IMAGE", "STRING", "STRING", "FLOAT")
     RETURN_NAMES = ("pose_data", "face_images", "key_frame_body_points", "bboxes", "face_bboxes", "iris_data", "debug_image", "right_pupil_xy", "left_pupil_xy", "lip_openness_ratio")
+    OUTPUT_TOOLTIPS = (
+        "Per-frame pose+face+iris dict bundle. Feed into Draw ViT Pose (V2).",
+        "Cropped face IMAGE batch suitable for face-id encoders.",
+        "Key-frame body points as JSON string (debug).",
+        "Per-frame body BBOX list.",
+        "Per-frame face BBOX list.",
+        "Iris/gaze JSON dump (debug).",
+        "Annotated debug IMAGE batch (skeleton overlay).",
+        "Right pupil pixel xy as JSON (per frame).",
+        "Left pupil pixel xy as JSON (per frame).",
+        "Mouth-open scalar list (0=closed, 1=wide).",
+    )
     FUNCTION = "process"
     CATEGORY = "WanAnimatePreprocess_V2"
 
@@ -1075,18 +1100,24 @@ class PoseAndFaceDetectionV2:
 # Draw ViTPose
 # ---------------------------------------------------
 class DrawViTPoseV2:
+    DESCRIPTION = (
+        "Render the detected skeleton, face landmarks, iris pupils and gaze "
+        "arrows onto a clean canvas at the target Wan 2.2 latent resolution. "
+        "Outputs an IMAGE batch ready to drop into a Wan-Animate sampler."
+    )
+
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "pose_data": ("POSEDATA",),
-                "width": ("INT", {"default": 832, "min": 64, "max": 2048}),
-                "height": ("INT", {"default": 480, "min": 64, "max": 2048}),
-                "retarget_padding": ("INT", {"default": 16, "min": 0, "max": 512}),
-                "body_stick_width": ("INT", {"default": -1, "min": -1, "max": 20}),
-                "hand_stick_width": ("INT", {"default": -1, "min": -1, "max": 20}),
-                "draw_head": ("BOOLEAN", {"default": "True"}),
-                "pose_draw_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "pose_data":         ("POSEDATA", {"tooltip": "From Pose and Face Detection (V2)."}),
+                "width":             ("INT",   {"default": 832, "min": 64, "max": 2048, "tooltip": "Render canvas width (px). Match the sampler latent size."}),
+                "height":            ("INT",   {"default": 480, "min": 64, "max": 2048, "tooltip": "Render canvas height (px). Match the sampler latent size."}),
+                "retarget_padding":  ("INT",   {"default": 16,  "min": 0,  "max": 512, "tooltip": "Padding (px) added around the body bbox when retargeting. Larger = more headroom for big motions."}),
+                "body_stick_width":  ("INT",   {"default": -1,  "min": -1, "max": 20,  "tooltip": "Body skeleton stick width in px. -1 = auto from canvas size."}),
+                "hand_stick_width":  ("INT",   {"default": -1,  "min": -1, "max": 20,  "tooltip": "Hand skeleton stick width in px. -1 = auto."}),
+                "draw_head":         ("BOOLEAN", {"default": True, "tooltip": "Draw the head/face skeleton (eyes, nose, ears)."}),
+                "pose_draw_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Per-keypoint score threshold for drawing."}),
             },
             # MANUAL bug-fix (Apr 2026): MediaPipe iris/gaze integration.
             # The Pose-and-Face-Detection node already produces per-frame
@@ -1113,6 +1144,7 @@ class DrawViTPoseV2:
 
     RETURN_TYPES = ("IMAGE", )
     RETURN_NAMES = ("pose_images", )
+    OUTPUT_TOOLTIPS = ("Rendered skeleton IMAGE batch. Feed into your Wan 2.2 Animate sampler.",)
     FUNCTION = "process"
     CATEGORY = "WanAnimatePreprocess_V2"
 

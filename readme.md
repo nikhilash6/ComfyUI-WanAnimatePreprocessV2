@@ -971,3 +971,31 @@ See [LICENSE](LICENSE) file.
 This contribution is shared in the hope it can be merged upstream and help improve Animate preprocessing for everyone.
 
 ![Example Output](example.png)
+
+## Use in image/video generation pipelines (Flux / Qwen-Image / Wan / Z-Image / ERNIE-VL)
+
+This V2 pack ships three nodes — `OnnxDetectionModelLoaderV2` (loads YOLOv8 + ViTPose ONNX checkpoints into a unified detector bundle), `PoseAndFaceDetectionV2` (per-frame whole-body 133-keypoint detection plus face crop and bbox extraction), and `DrawViTPoseV2` (renders the COCO-WholeBody skeleton with optional face/hand stick widths and head toggles). The `POSEDATA` bundle and rendered `IMAGE` skeleton match the schema the Wan-Animate sampler family expects.
+
+| Model family | Applicability |
+|---|---|
+| **Wan 2.x Animate (human)** | Native. The skeleton IMAGE from `DrawViTPoseV2` is the human-pose conditioning channel for Wan-Animate; `face_bboxes` / `face_images` from `PoseAndFaceDetectionV2` feed the face conditioning channel. This is the V2 of that pipeline — improved face handling and hand keypoints over V1. |
+| **Wan 2.x Animate (animal)** | Not applicable here — use the sister pack `ComfyUI-WanAnimalPreprocess` (AP10k/APT36k animal ViTPose) for quadruped subjects. |
+| **Flux** | Indirect. The rendered skeleton is a generic conditioning IMAGE — wire it into a Flux ControlNet pose model when generating human stills with pose control. The face crops are useful as ID/IP-Adapter input. |
+| **Qwen-Image** | Indirect. Same pattern as Flux: use the skeleton as ControlNet pose conditioning if a Qwen-compatible pose ControlNet is loaded. |
+| **Z-Image** | Indirect. Use the skeleton as a conditioning image where Z-Image supports pose ControlNet. |
+| **GLM-Image** | Not currently applicable; GLM-Image does not yet expose a pose ControlNet path. |
+| **ERNIE-VL** | Not applicable; ERNIE-VL is a multimodal LLM rather than a diffusion sampler. |
+
+Wiring pattern for the canonical Wan-Animate V2 graph:
+
+```
+[Load Video Frames] ──> [Pose and Face Detection V2] ──┬──> POSEDATA ──> [Draw ViT Pose V2] ──> skeleton IMAGE
+                                                       ├──> face_bboxes
+                                                       └──> face_images
+                                                                       │
+   [ONNX Detection Model Loader V2] ──> POSEMODEL ──┘                  │
+                                                                       ▼
+                                                       [Wan-Animate Sampler]
+```
+
+Bounding-box outputs are also useful as input to crop / inpaint pipelines (e.g. ComfyUI-CustomNodePacks `Inpaint Crop Pro`) when refining only the body or face region.

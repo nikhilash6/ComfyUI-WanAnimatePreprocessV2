@@ -11,3 +11,5 @@ tools/
 .vscode/
 convert_*
 *.pt
+models/yolo_debug.log
+
