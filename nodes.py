@@ -1021,6 +1021,13 @@ class PoseAndFaceDetectionV2:
             "pose_metas_original": pose_metas,
             "iris_data": all_iris,
             "lip_openness_ratios": all_lip_ratios,
+            # MANUAL bug-fix (Apr 2026): expose source frame dims + target
+            # render dims so DrawViTPoseV2 can map iris pixel coords (which
+            # live in the *original* frame coord system) into the retargeted
+            # canvas using the same padding_resize transform that body
+            # keypoints went through.
+            "source_size": (int(H), int(W)),
+            "target_size": (int(height), int(width)),
         }
 
         # --- Debug visualisation ---
@@ -1081,6 +1088,27 @@ class DrawViTPoseV2:
                 "draw_head": ("BOOLEAN", {"default": "True"}),
                 "pose_draw_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
             },
+            # MANUAL bug-fix (Apr 2026): MediaPipe iris/gaze integration.
+            # The Pose-and-Face-Detection node already produces per-frame
+            # iris pixel coords + gaze vectors in pose_data["iris_data"];
+            # these optional widgets let the rendered pose image carry
+            # explicit pupil + gaze cues that the Wan 2.2 Animate sampler
+            # consumes through cross-attention.  All defaults preserve the
+            # legacy behaviour when the operator does not opt in.
+            "optional": {
+                "draw_iris": ("BOOLEAN", {"default": True,
+                    "tooltip": "Draw iris/pupil markers from MediaPipe iris_data."}),
+                "draw_gaze": ("BOOLEAN", {"default": True,
+                    "tooltip": "Draw gaze direction arrows from iris_data."}),
+                "iris_radius": ("INT", {"default": 4, "min": 1, "max": 20,
+                    "tooltip": "Pupil circle radius in pixels."}),
+                "gaze_arrow_len": ("INT", {"default": 30, "min": 4, "max": 200,
+                    "tooltip": "Length of gaze direction arrow in pixels."}),
+                "iris_min_confidence": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01,
+                    "tooltip": "Skip iris frames whose detection confidence is below this."}),
+                "iris_color": (["white", "magenta", "yellow", "green"], {"default": "white",
+                    "tooltip": "Color of the drawn pupil; magenta gives strongest sampler signal."}),
+            },
         }
 
     RETURN_TYPES = ("IMAGE", )
@@ -1088,9 +1116,102 @@ class DrawViTPoseV2:
     FUNCTION = "process"
     CATEGORY = "WanAnimatePreprocess_V2"
 
-    def process(self, pose_data, width, height, body_stick_width, hand_stick_width, draw_head, pose_draw_threshold, retarget_padding=64):
+    @staticmethod
+    def _padding_resize_transform(src_h, src_w, out_h, out_w):
+        """Replicate utils.padding_resize math as a (scale, ox, oy) transform.
+
+        Returns the per-pixel scale and (offset_x, offset_y) that map a
+        source-coord (x, y) into the padded target canvas of size out_h*out_w.
+        """
+        if (src_h / max(src_w, 1)) > (out_h / max(out_w, 1)):
+            new_w = int(out_h / src_h * src_w)
+            scale = out_h / src_h
+            ox = (out_w - new_w) // 2
+            oy = 0
+        else:
+            new_h = int(out_w / src_w * src_h)
+            scale = out_w / src_w
+            ox = 0
+            oy = (out_h - new_h) // 2
+        return scale, ox, oy
+
+    def _draw_iris_overlay(self, canvas, iris_dict, transform,
+                            iris_radius, gaze_arrow_len, min_conf,
+                            color_bgr, draw_iris, draw_gaze):
+        if iris_dict is None:
+            return
+        scale, ox, oy = transform
+        H, W = canvas.shape[:2]
+        for eye_key, gaze_key in (("right_iris", "right_gaze"),
+                                    ("left_iris", "left_gaze")):
+            iris = iris_dict.get(eye_key)
+            if not isinstance(iris, dict):
+                continue
+            try:
+                conf = float(iris.get("confidence", 0.0))
+            except (TypeError, ValueError):
+                conf = 0.0
+            if conf < min_conf:
+                continue
+            try:
+                src_x = float(iris["x"]); src_y = float(iris["y"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            cx = int(round(src_x * scale + ox))
+            cy = int(round(src_y * scale + oy))
+            if not (0 <= cx < W and 0 <= cy < H):
+                continue
+            if draw_iris:
+                cv2.circle(canvas, (cx, cy), iris_radius, color_bgr, -1, cv2.LINE_AA)
+                cv2.circle(canvas, (cx, cy), max(iris_radius + 2, 6),
+                           (0, 0, 0), 1, cv2.LINE_AA)
+            if draw_gaze:
+                gaze = iris_dict.get(gaze_key)
+                if isinstance(gaze, dict):
+                    try:
+                        dx = float(gaze.get("dx", 0.0))
+                        dy = float(gaze.get("dy", 0.0))
+                    except (TypeError, ValueError):
+                        dx = dy = 0.0
+                    if abs(dx) > 1e-4 or abs(dy) > 1e-4:
+                        ex = int(round(cx + dx * gaze_arrow_len))
+                        ey = int(round(cy + dy * gaze_arrow_len))
+                        cv2.arrowedLine(canvas, (cx, cy), (ex, ey),
+                                        color_bgr, 2, cv2.LINE_AA, tipLength=0.3)
+
+    def process(self, pose_data, width, height, body_stick_width, hand_stick_width,
+                draw_head, pose_draw_threshold, retarget_padding=64,
+                draw_iris=True, draw_gaze=True,
+                iris_radius=4, gaze_arrow_len=30,
+                iris_min_confidence=0.05, iris_color="white"):
         pose_metas = pose_data["pose_metas"]
         draw_hand = hand_stick_width != 0
+
+        # MANUAL bug-fix (Apr 2026): support optional iris drawing on top of
+        # the rendered pose canvas.  iris_data is always rendered into the
+        # *target* (width, height) coord system using the same padding-resize
+        # transform that body keypoints went through.
+        iris_data = pose_data.get("iris_data") or []
+        src_size = pose_data.get("source_size")
+        # RGB (cv2 expects BGR but we draw on a uint8 canvas that is later
+        # converted to a float [0,1] tensor as RGB; OpenCV draws in BGR order
+        # numerically, but since values are symmetric (white) or chosen to
+        # match the eventual sampler signal we pick a single consistent
+        # palette).  Here color tuples are (R, G, B) on the array directly.
+        color_map = {
+            "white":   (255, 255, 255),
+            "magenta": (255, 0, 255),
+            "yellow":  (255, 255, 0),
+            "green":   (0, 255, 0),
+        }
+        iris_color_rgb = color_map.get(iris_color, (255, 255, 255))
+
+        if src_size and len(src_size) == 2:
+            transform = self._padding_resize_transform(
+                int(src_size[0]), int(src_size[1]), int(height), int(width)
+            )
+        else:
+            transform = None  # cannot retarget without source dims
 
         comfy_pbar = ProgressBar(len(pose_metas))
         progress = 0
@@ -1108,6 +1229,13 @@ class DrawViTPoseV2:
                 threshold=pose_draw_threshold,
             )
             pose_image = padding_resize(pose_image, height, width)
+            if transform is not None and idx < len(iris_data) and (draw_iris or draw_gaze):
+                self._draw_iris_overlay(
+                    pose_image, iris_data[idx], transform,
+                    int(iris_radius), int(gaze_arrow_len),
+                    float(iris_min_confidence), iris_color_rgb,
+                    bool(draw_iris), bool(draw_gaze),
+                )
             pose_images.append(pose_image)
             progress += 1
             if progress % 10 == 0:
