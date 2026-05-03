@@ -8,7 +8,7 @@
 #               https://github.com/kijai/ComfyUI-WanAnimatePreprocess/issues/10
 #               Apache License 2.0 (contributed to an Apache-2.0 repo)
 #
-# Copyright 2025-2026 Likhith-24 (https://github.com/Likhith-24)
+# Copyright 2025-2026 Code2Collapse (https://github.com/Code2Collapse)
 #               Additional work: iris/pupil detection (gradient voting, Timm-Barth
 #               inspired multi-strategy), MediaPipe FaceMesh integration,
 #               protobuf-5.x compatibility fix, V2 extensions and enhancements
@@ -25,7 +25,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# ---- Modifications by Likhith-24 (2025-2026) relative to steven850/kijai base ----
+# ---- Modifications by Code2Collapse (2025-2026) relative to steven850/kijai base ----
 # - Added MediaPipe FaceMesh 478-point landmark pipeline with iris/gaze tracking
 # - Added protobuf >=5.x compatibility fix for mediapipe <=0.10.x
 # - Added gradient-based pupil centre detection (Timm-Barth 2011 inspired)

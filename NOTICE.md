@@ -1,9 +1,9 @@
 # NOTICE — ComfyUI-WanAnimatePreprocessV2
 
-Copyright (c) 2025-2026 Likhith-24 (https://github.com/Likhith-24)  
+Copyright (c) 2025-2026 Code2Collapse (https://github.com/Code2Collapse)  
 License: Apache License 2.0 (see LICENSE)
 
-**Project author**: Likhith-24  
+**Project author**: Code2Collapse  
 
 This project is a **derivative work** based on:
 
@@ -19,7 +19,7 @@ This project is a **derivative work** based on:
    Issue: <https://github.com/kijai/ComfyUI-WanAnimatePreprocess/issues/10>  
    License: Apache 2.0 (contribution to an Apache-2.0 repository)
 
-**Additions by Likhith-24** on top of the kijai/steven850 base:
+**Additions by Code2Collapse** on top of the kijai/steven850 base:
 - Iris/pupil detection (gradient voting, Timm-Barth 2011 inspired multi-strategy fallback)
 - MediaPipe FaceMesh 478-point pipeline with iris/gaze/lip tracking
 - Protobuf ≥5.x compatibility fix for mediapipe ≤0.10.x
@@ -100,7 +100,7 @@ The following files are adapted from this project:
 **License**: Apache License 2.0  
 <https://github.com/ssj9596/One-to-All-Animation/blob/main/LICENSE>
 
-**Modifications by Likhith-24 (2025-2026)**:
+**Modifications by Code2Collapse (2025-2026)**:
 - Adapted for ComfyUI-WanAnimatePreprocessV2 node integration
 - Added `aaposemeta_obj_to_dwpose` for AAPoseMeta object support
 

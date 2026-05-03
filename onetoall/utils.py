@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# ---- Modifications by Likhith-24 (2025-2026) ----
+# ---- Modifications by Code2Collapse (2025-2026) ----
 # - Adapted pose retargeting utilities for ComfyUI-WanAnimatePreprocessV2 integration
 
 import cv2
