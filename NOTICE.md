@@ -4,10 +4,27 @@ Copyright (c) 2025-2026 Likhith-24 (https://github.com/Likhith-24)
 License: Apache License 2.0 (see LICENSE)
 
 **Project author**: Likhith-24  
-**Original nodes.py pipeline** was written from scratch, inspired by
-discussions in ComfyUI-WanVideoWrapper issues #1410 and #10 by
-[@kijai](https://github.com/kijai) and [@steven850](https://github.com/steven850).
-No code was copied from their repositories.
+
+This project is a **derivative work** based on:
+
+1. **kijai's `ComfyUI-WanAnimatePreprocess`** — original YOLO+ViTPose+Wan pipeline  
+   Author: kijai (Jukka Seppänen) — <https://github.com/kijai>  
+   Repository: <https://github.com/kijai/ComfyUI-WanAnimatePreprocess>  
+   License: Apache 2.0
+
+2. **steven850's improved nodes** — added CLAHE preprocessing, Gaussian blur,  
+   temporal face-bbox smoothing, constant-size face crop, detection threshold  
+   controls. Submitted as an attachment to issue #10 of kijai's repo.  
+   Author: steven850 — <https://github.com/steven850>  
+   Issue: <https://github.com/kijai/ComfyUI-WanAnimatePreprocess/issues/10>  
+   License: Apache 2.0 (contribution to an Apache-2.0 repository)
+
+**Additions by Likhith-24** on top of the kijai/steven850 base:
+- Iris/pupil detection (gradient voting, Timm-Barth 2011 inspired multi-strategy fallback)
+- MediaPipe FaceMesh 478-point pipeline with iris/gaze/lip tracking
+- Protobuf ≥5.x compatibility fix for mediapipe ≤0.10.x
+- Lip openness ratio output
+- Renamed to V2 namespace with additional RETURN_TYPES
 
 This project includes code and data derived from the following third-party
 works. Their copyrights and licenses are listed below.
@@ -34,7 +51,39 @@ and carry their original copyright notices intact (as required by Apache 2.0):
 
 ---
 
-## 2. One-to-All-Animation (CVPR 2026)
+## 2. kijai — ComfyUI-WanAnimatePreprocess
+
+**Author**: kijai (Jukka Seppänen) — <https://github.com/kijai>  
+**Repository**: <https://github.com/kijai/ComfyUI-WanAnimatePreprocess>  
+**License**: Apache License 2.0
+
+`nodes.py` and `models/onnx_models.py` in this pack are derivative works
+based on kijai's original ComfyUI node wrappers for the Wan Animate preprocessing
+pipeline. kijai's code wraps the Alibaba Wan Team's preprocess logic as
+ComfyUI nodes.
+
+---
+
+## 3. steven850 — Improved pose and face detection
+
+**Author**: steven850 — <https://github.com/steven850>  
+**Source**: Issue #10 of kijai/ComfyUI-WanAnimatePreprocess  
+<https://github.com/kijai/ComfyUI-WanAnimatePreprocess/issues/10>  
+**License**: Apache License 2.0 (contribution to Apache-2.0 repository)
+
+The following improvements in `nodes.py` originate from steven850's
+contribution posted as issue #10:
+
+- CLAHE contrast enhancement preprocessing
+- Gaussian blur preprocessing for YOLO/ViTPose stability
+- Motion-adaptive temporal smoothing for face bounding boxes
+- Constant-size face crop with center-tracking
+- Detection threshold and pose threshold parameters
+- Core 8-stage pipeline architecture (YOLO → ViTPose → pose metas → face bbox → smooth → crop → package)
+
+---
+
+## 4. One-to-All-Animation (CVPR 2026)
 
 **Repository owners / Authors**:  
 Shijun Shi (Jiangnan University), Jing Xu (USTC), Zhihang Li (CAS),  
@@ -68,7 +117,7 @@ The following files are adapted from this project:
 
 ---
 
-## 3. MediaPipe (Google LLC)
+## 5. MediaPipe (Google LLC)
 
 Used for 478-point FaceMesh landmark detection in `nodes.py`.
 
@@ -79,7 +128,7 @@ Used for 478-point FaceMesh landmark detection in `nodes.py`.
 
 ---
 
-## 4. ViTPose (MMLAB / OpenMMLab)
+## 6. ViTPose (MMLAB / OpenMMLab)
 
 ONNX models for 2D human pose estimation are derived from the ViTPose project.
 
@@ -90,7 +139,7 @@ ONNX models for 2D human pose estimation are derived from the ViTPose project.
 
 ---
 
-## 5. ONNX Runtime (Microsoft)
+## 7. ONNX Runtime (Microsoft)
 
 Used as the ONNX inference backend for ViTPose and YOLO models.
 
@@ -101,7 +150,7 @@ Used as the ONNX inference backend for ViTPose and YOLO models.
 
 ---
 
-## 6. DWPose / ControlNet Auxiliary Preprocessors
+## 8. DWPose / ControlNet Auxiliary Preprocessors
 
 The pose data structures in `onetoall/infer_function.py` use the DWPose
 format developed by IDEA Research / ControlNet contributors.
@@ -112,14 +161,14 @@ format developed by IDEA Research / ControlNet contributors.
 
 ---
 
-## 7. OpenCV
+## 9. OpenCV
 
 **Repository**: <https://github.com/opencv/opencv>  
 **License**: Apache License 2.0 (since OpenCV 4.5)
 
 ---
 
-## 8. PyTorch
+## 10. PyTorch
 
 **Repository**: <https://github.com/pytorch/pytorch>  
 **Copyright**: Copyright (c) 2016-2024 Facebook, Inc. and its affiliates  

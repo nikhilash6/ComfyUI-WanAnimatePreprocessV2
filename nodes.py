@@ -1,4 +1,17 @@
+# Copyright 2025 kijai (Jukka Seppänen) — original ComfyUI-WanAnimatePreprocess
+#               https://github.com/kijai/ComfyUI-WanAnimatePreprocess
+#               Apache License 2.0
+#
+# Copyright 2025 steven850 — improved pose/face pipeline (CLAHE, temporal
+#               smoothing, constant-size face box, blur preprocessing)
+#               Contributed in issue #10 of ComfyUI-WanAnimatePreprocess:
+#               https://github.com/kijai/ComfyUI-WanAnimatePreprocess/issues/10
+#               Apache License 2.0 (contributed to an Apache-2.0 repo)
+#
 # Copyright 2025-2026 Likhith-24 (https://github.com/Likhith-24)
+#               Additional work: iris/pupil detection (gradient voting, Timm-Barth
+#               inspired multi-strategy), MediaPipe FaceMesh integration,
+#               protobuf-5.x compatibility fix, V2 extensions and enhancements
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +25,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Special thanks to @kijai and @steven850 whose work on ComfyUI-WanVideoWrapper
-# (GitHub issues #1410, #10) inspired this preprocessing pipeline.
+# ---- Modifications by Likhith-24 (2025-2026) relative to steven850/kijai base ----
+# - Added MediaPipe FaceMesh 478-point landmark pipeline with iris/gaze tracking
+# - Added protobuf >=5.x compatibility fix for mediapipe <=0.10.x
+# - Added gradient-based pupil centre detection (Timm-Barth 2011 inspired)
+# - Added multi-strategy iris fallback (contour moments + weighted centroid)
+# - Added iris/gaze overlay to debug visualisation
+# - Added lip openness ratio output
+# - Renamed nodes to V2 namespace; added RETURN_TYPES for iris/gaze/lip outputs
 
 import os
 import torch

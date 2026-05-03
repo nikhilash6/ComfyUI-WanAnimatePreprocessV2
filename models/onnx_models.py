@@ -1,4 +1,16 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
+#
+# Modified 2025 by kijai (Jukka Seppänen) — ComfyUI-WanAnimatePreprocess
+#   https://github.com/kijai/ComfyUI-WanAnimatePreprocess (Apache-2.0)
+#
+# Modified 2025 by steven850 — threshold_conf/reinit/cleanup additions
+#   https://github.com/kijai/ComfyUI-WanAnimatePreprocess/issues/10
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
 
 import cv2
 import numpy as np
