@@ -44,6 +44,7 @@ import json
 import logging
 import math
 
+from . import _interrupt_check as _IC
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------
@@ -936,6 +937,7 @@ class PoseAndFaceDetectionV2:
 
         # --- YOLO detection (on blurred) ---
         for img in tqdm(images_blurred, total=B, desc="Detecting bboxes"):
+            _IC.check()
             detections = detector(cv2.resize(img, (640, 640)).transpose(2, 0, 1)[None], shape)[0]
             if isinstance(detections, list) and len(detections) > 0 and isinstance(detections[0], dict):
                 bboxes.append(detections[0]["bbox"])
@@ -950,6 +952,7 @@ class PoseAndFaceDetectionV2:
         # --- Pose detection (on blurred) ---
         kp2ds = []
         for img, bbox in tqdm(zip(images_blurred, bboxes), total=B, desc="Extracting keypoints"):
+            _IC.check()
             if (
                 bbox is None
                 or len(bbox) < 5
@@ -1105,6 +1108,7 @@ class PoseAndFaceDetectionV2:
         mp_used_count = 0
         bs_used_count = 0
         for idx, meta in enumerate(pose_metas):
+            _IC.check()
             mp_result = None
             x1, x2, y1, y2 = face_bboxes[idx]
             cw, ch = x2 - x1, y2 - y1
@@ -1283,6 +1287,7 @@ class PoseAndFaceDetectionV2:
         # --- Debug visualisation ---
         debug_frames = []
         for idx in range(B):
+            _IC.check()
             frame = images_np[idx]
             if frame.dtype != np.uint8:
                 frame_u8 = (np.clip(frame, 0, 1) * 255).astype(np.uint8)
@@ -1475,6 +1480,7 @@ class DrawViTPoseV2:
         pose_images = []
 
         for idx, meta in enumerate(tqdm(pose_metas, desc="Drawing pose images")):
+            _IC.check()
             canvas = np.zeros((height, width, 3), dtype=np.uint8)
             pose_image = draw_aapose_by_meta_new(
                 canvas,
