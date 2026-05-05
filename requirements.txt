@@ -2,3 +2,4 @@ onnx
 onnxruntime-gpu
 opencv-python
 mediapipe
+ai-edge-litert

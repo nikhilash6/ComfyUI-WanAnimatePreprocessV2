@@ -68,6 +68,22 @@ except Exception as _exc:  # noqa: BLE001
         _exc,
     )
 
+# Direct-tflite backend (bypasses mediapipe Python wrapper). Used as the
+# primary path on installs where the mediapipe wheel is stripped or its
+# C-API trips on a TaskRunner signature mismatch (mediapipe 0.10.35 +
+# protobuf >= 7), and as a graceful fallback otherwise.
+try:
+    from . import gaze_tflite as _gaze_tflite  # type: ignore
+except Exception:  # noqa: BLE001
+    try:
+        import gaze_tflite as _gaze_tflite  # type: ignore
+    except Exception as _tflite_exc:  # noqa: BLE001
+        _gaze_tflite = None
+        logger.info(
+            "gaze_tflite backend unavailable (%s). Falling back to "
+            "mediapipe Tasks API only.", _tflite_exc,
+        )
+
 # Public Google-hosted model URL (~3 MB, MIT-style terms).
 # float16 v1, current as of May 2026.
 FACE_LANDMARKER_URL = (
@@ -197,8 +213,19 @@ def run_face_landmarker(rgb_uint8: np.ndarray) -> Optional[Dict[str, Any]]:
                                (face -> camera, OpenGL convention),
         }
     """
+    if rgb_uint8 is None or rgb_uint8.size == 0:
+        return None
+    # Prefer the tflite-direct backend when available: it bypasses the
+    # mediapipe Python wrapper entirely and works on stripped wheels /
+    # protobuf-7 environments where the Tasks API silently breaks.
+    if _gaze_tflite is not None and _gaze_tflite.is_available():
+        res = _gaze_tflite.run_face_landmarker(rgb_uint8)
+        if res is not None:
+            return res
+        # tflite backend reported no face -> let the Tasks API try too,
+        # but only if it's actually usable in this env.
     landmarker = get_face_landmarker()
-    if landmarker is None or rgb_uint8 is None or rgb_uint8.size == 0:
+    if landmarker is None:
         return None
     if rgb_uint8.dtype != np.uint8:
         rgb_uint8 = np.clip(rgb_uint8, 0, 255).astype(np.uint8)
@@ -415,5 +442,7 @@ class GazeStreamSmoother:
 # Convenience wrapper used by nodes.py
 # ---------------------------------------------------------------------------
 def is_available() -> bool:
-    """True if the FaceLandmarker pipeline can be used right now."""
+    """True if any FaceLandmarker pipeline (tflite or Tasks API) is usable."""
+    if _gaze_tflite is not None and _gaze_tflite.is_available():
+        return True
     return _TASKS_AVAILABLE and (get_face_landmarker() is not None)
