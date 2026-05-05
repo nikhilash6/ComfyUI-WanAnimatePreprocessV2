@@ -1,0 +1,275 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 6,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        40,
+        40
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "title": "Load Actor Footage",
+      "widgets_values": [
+        "actor_clip.png",
+        "image"
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1,
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "OnnxDetectionModelLoaderV2",
+      "pos": [
+        40,
+        240
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "properties": {
+        "Node name for S&R": "OnnxDetectionModelLoaderV2"
+      },
+      "title": "V2 Detection Loader",
+      "widgets_values": [
+        "yolox_l.onnx",
+        "vitpose_h.onnx",
+        "auto"
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "ONNX_MODEL",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "PoseAndFaceDetectionV2",
+      "pos": [
+        440,
+        40
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "properties": {
+        "Node name for S&R": "PoseAndFaceDetectionV2"
+      },
+      "title": "Pose+Face Detect",
+      "widgets_values": [
+        0.5,
+        0.45,
+        true
+      ],
+      "outputs": [
+        {
+          "name": "pose",
+          "type": "POSE",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "face",
+          "type": "FACE_LANDMARKS",
+          "links": [
+            5
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "bbox",
+          "type": "BBOX",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
+      "inputs": [
+        {
+          "name": "model",
+          "type": "ONNX_MODEL",
+          "link": 2
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "DrawViTPoseV2",
+      "pos": [
+        840,
+        40
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "properties": {
+        "Node name for S&R": "DrawViTPoseV2"
+      },
+      "title": "Draw V2",
+      "widgets_values": [
+        true,
+        true,
+        true,
+        2.0
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "pose",
+          "type": "POSE",
+          "link": 4
+        },
+        {
+          "name": "face",
+          "type": "FACE_LANDMARKS",
+          "link": 5
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "SaveImage",
+      "pos": [
+        1240,
+        40
+      ],
+      "size": [
+        320,
+        130
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "title": "Save",
+      "widgets_values": [
+        "wan_animate_v2_%batch_num%"
+      ],
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 6
+        }
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      1,
+      "IMAGE"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "ONNX_MODEL"
+    ],
+    [
+      3,
+      1,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      0,
+      4,
+      1,
+      "POSE"
+    ],
+    [
+      5,
+      3,
+      1,
+      4,
+      2,
+      "FACE_LANDMARKS"
+    ],
+    [
+      6,
+      4,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
