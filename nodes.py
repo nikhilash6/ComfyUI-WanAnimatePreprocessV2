@@ -42,6 +42,7 @@ import folder_paths
 import cv2
 import json
 import logging
+import math
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -265,6 +266,95 @@ def _run_mediapipe_on_face_crop(face_crop_rgb_uint8, crop_origin_xy, crop_size_w
         'left_iris_radius_px': l_radius,
         'lip_openness_ratio': lip_ratio,
     }
+
+
+# ---------------------------------------------------
+# Production gaze via FaceLandmarker Tasks API + blend shapes
+# ---------------------------------------------------
+# The Tasks API replaces the legacy `mp.solutions.face_mesh` glue and
+# additionally returns 52 ARKit-compatible blend shapes per face. We use
+# the eight `eyeLookIn/Out/Up/Down{Left,Right}` shapes to derive
+# head-pose-corrected per-eye yaw/pitch in radians — i.e. real gaze
+# angles, not 2D iris offsets. See `gaze_blendshape.py` for the math.
+try:
+    from . import gaze_blendshape as _gaze_bs  # type: ignore
+    _GAZE_BS_IMPORTED = True
+except Exception as _exc:  # noqa: BLE001
+    _gaze_bs = None
+    _GAZE_BS_IMPORTED = False
+    logging.getLogger(__name__).info(
+        "gaze_blendshape module unavailable (%s); blend-shape gaze disabled.",
+        _exc,
+    )
+
+
+def _run_face_landmarker_on_face_crop(
+    face_crop_rgb_uint8, crop_origin_xy, crop_size_wh, full_w, full_h,
+):
+    """Run MediaPipe FaceLandmarker on a face crop and pack into the
+    same dict shape as :func:`_run_mediapipe_on_face_crop`, plus an
+    extra ``gaze`` entry derived from the eye-look blend shapes.
+
+    Returns ``None`` when the Tasks API is not available or no face was
+    found in the crop. Caller may fall back to FaceMesh.
+    """
+    if not _GAZE_BS_IMPORTED or _gaze_bs is None:
+        return None
+    if face_crop_rgb_uint8 is None or face_crop_rgb_uint8.size == 0:
+        return None
+    res = _gaze_bs.run_face_landmarker(face_crop_rgb_uint8)
+    if res is None:
+        return None
+
+    landmarks = res["landmarks_norm"]   # (478, 3) in [0,1] crop-space
+    if landmarks.shape[0] < 478:
+        return None
+
+    cx0, cy0 = crop_origin_xy
+    cw, ch = crop_size_wh
+
+    pts_px = np.empty((landmarks.shape[0], 2), dtype=np.float32)
+    pts_px[:, 0] = landmarks[:, 0] * cw + cx0
+    pts_px[:, 1] = landmarks[:, 1] * ch + cy0
+
+    kps68_px = pts_px[MP_TO_DLIB68]
+    kps68_norm = np.zeros((68, 3), dtype=np.float32)
+    kps68_norm[:, 0] = kps68_px[:, 0] / max(full_w, 1)
+    kps68_norm[:, 1] = kps68_px[:, 1] / max(full_h, 1)
+    kps68_norm[:, 2] = 1.0
+
+    r_iris = pts_px[MP_RIGHT_IRIS_CENTER]
+    l_iris = pts_px[MP_LEFT_IRIS_CENTER]
+    r_ring = pts_px[MP_RIGHT_IRIS_RING]
+    l_ring = pts_px[MP_LEFT_IRIS_RING]
+    r_radius = float(np.mean(np.linalg.norm(r_ring - r_iris[None, :], axis=1)))
+    l_radius = float(np.mean(np.linalg.norm(l_ring - l_iris[None, :], axis=1)))
+
+    top = pts_px[MP_INNER_LIP_TOP]
+    bot = pts_px[MP_INNER_LIP_BOTTOM]
+    rgt = pts_px[MP_INNER_LIP_RIGHT]
+    lft = pts_px[MP_INNER_LIP_LEFT]
+    v = float(np.linalg.norm(top - bot))
+    h = float(np.linalg.norm(rgt - lft))
+    lip_ratio = float(v / h) if h > 1e-6 else 0.0
+
+    gaze = _gaze_bs.blendshapes_to_gaze(res.get("blendshapes") or {})
+
+    return {
+        'kps68_norm': kps68_norm,
+        'right_iris_px': (float(r_iris[0]), float(r_iris[1])),
+        'left_iris_px': (float(l_iris[0]), float(l_iris[1])),
+        'right_iris_radius_px': r_radius,
+        'left_iris_radius_px': l_radius,
+        'lip_openness_ratio': lip_ratio,
+        # NEW: production gaze from blend shapes — head-pose corrected,
+        # in radians per eye, plus a 2D dx/dy for legacy debug overlay.
+        'gaze_blendshape': gaze,
+        'blendshapes': res.get("blendshapes") or {},
+        'face_transform': res.get("transform"),
+        'source': 'face_landmarker',
+    }
+
 
 from comfy import model_management as mm
 from comfy.utils import ProgressBar
@@ -761,6 +851,12 @@ class PoseAndFaceDetectionV2:
                 "iris_smoothing_strength": ("FLOAT", {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.05, "tooltip": "Higher = more temporal smoothing for iris."}),
                 # MediaPipe face mesh (high-fidelity iris/lip tracking, falls back to ViTPose if unavailable)
                 "use_mediapipe_face": ("BOOLEAN", {"default": True, "tooltip": "Use MediaPipe FaceMesh (478 pts incl. iris/lips) to override face landmarks. Falls back to ViTPose pupil voting if MediaPipe is missing or fails on a frame."}),
+                # Production gaze (ARKit blend shapes via FaceLandmarker Tasks API)
+                "use_blendshape_gaze": ("BOOLEAN", {"default": True, "tooltip": "Use MediaPipe FaceLandmarker (Tasks API) blend shapes for production-grade per-eye yaw/pitch in radians. Head-pose-corrected by training. Auto-downloads face_landmarker.task (~3MB) on first run. Falls back to legacy 2D iris-offset gaze if disabled or unavailable."}),
+                "gaze_one_euro_min_cutoff": ("FLOAT", {"default": 1.7, "min": 0.05, "max": 10.0, "step": 0.05, "tooltip": "One-euro filter base cutoff frequency (Hz). Lower = more aggressive jitter rejection at the cost of slight lag. 1.7 is a good default for 24-30 fps gaze."}),
+                "gaze_one_euro_beta": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 5.0, "step": 0.05, "tooltip": "One-euro filter speed coefficient. Higher = filter relaxes faster on quick saccades, preserving responsiveness; lower = stronger smoothing during fast moves."}),
+                "gaze_max_yaw_deg": ("FLOAT", {"default": 30.0, "min": 5.0, "max": 60.0, "step": 1.0, "tooltip": "Saturation yaw angle in degrees that corresponds to blend shape value 1.0. 30\u00b0 covers the comfortable physiological range; raise for more dramatic eye motion."}),
+                "gaze_max_pitch_deg": ("FLOAT", {"default": 25.0, "min": 5.0, "max": 60.0, "step": 1.0, "tooltip": "Saturation pitch angle in degrees that corresponds to blend shape value 1.0. 25\u00b0 covers the comfortable physiological range."}),
             },
         }
 
@@ -800,6 +896,11 @@ class PoseAndFaceDetectionV2:
         use_iris_smoothing,
         iris_smoothing_strength,
         use_mediapipe_face=True,
+        use_blendshape_gaze=True,
+        gaze_one_euro_min_cutoff=1.7,
+        gaze_one_euro_beta=0.3,
+        gaze_max_yaw_deg=30.0,
+        gaze_max_pitch_deg=25.0,
     ):
         detector = model["yolo"]
         pose_model = model["vitpose"]
@@ -988,21 +1089,41 @@ class PoseAndFaceDetectionV2:
         points = (keypoints_body * wh).astype(np.int32)
         points_dict_list = [{"x": int(p[0]), "y": int(p[1])} for p in points]
 
-        # --- Iris estimation (image-based pupil detection) ---
+        # --- Iris + gaze estimation ---
+        # Preferred path: FaceLandmarker (Tasks API) — returns 478-pt mesh,
+        # iris ring, and 52 ARKit blend shapes from which we derive
+        # head-pose-corrected per-eye yaw/pitch (radians). Falls back to
+        # legacy FaceMesh and finally to the OpenCV pupil voter.
         all_iris = []
         all_lip_ratios = []
         mp_enabled = bool(use_mediapipe_face) and _MP_AVAILABLE
+        bs_enabled = bool(use_blendshape_gaze) and _GAZE_BS_IMPORTED and (
+            _gaze_bs is not None and _gaze_bs.is_available()
+        )
+        max_yaw_rad = math.radians(float(gaze_max_yaw_deg))
+        max_pitch_rad = math.radians(float(gaze_max_pitch_deg))
         mp_used_count = 0
+        bs_used_count = 0
         for idx, meta in enumerate(pose_metas):
             mp_result = None
-            if mp_enabled:
-                x1, x2, y1, y2 = face_bboxes[idx]
-                cw, ch = x2 - x1, y2 - y1
-                if cw > 8 and ch > 8:
-                    crop_rgb = (np.clip(images_np[idx][y1:y2, x1:x2], 0, 1) * 255).astype(np.uint8)
-                    mp_result = _run_mediapipe_on_face_crop(
-                        crop_rgb, (x1, y1), (cw, ch), W, H,
-                    )
+            x1, x2, y1, y2 = face_bboxes[idx]
+            cw, ch = x2 - x1, y2 - y1
+            crop_rgb = None
+            if cw > 8 and ch > 8:
+                crop_rgb = (np.clip(images_np[idx][y1:y2, x1:x2], 0, 1) * 255).astype(np.uint8)
+
+            # 1) Try FaceLandmarker Tasks API (with blend-shape gaze)
+            if bs_enabled and crop_rgb is not None:
+                mp_result = _run_face_landmarker_on_face_crop(
+                    crop_rgb, (x1, y1), (cw, ch), W, H,
+                )
+                if mp_result is not None:
+                    bs_used_count += 1
+            # 2) Fall back to legacy FaceMesh (no blend shapes)
+            if mp_result is None and mp_enabled and crop_rgb is not None:
+                mp_result = _run_mediapipe_on_face_crop(
+                    crop_rgb, (x1, y1), (cw, ch), W, H,
+                )
 
             if mp_result is not None:
                 mp_used_count += 1
@@ -1021,21 +1142,53 @@ class PoseAndFaceDetectionV2:
                                     'radius': mp_result['right_iris_radius_px']},
                     'left_iris':  {'x': lix, 'y': liy, 'confidence': 1.0,
                                     'radius': mp_result['left_iris_radius_px']},
+                    'source': mp_result.get('source', 'face_mesh'),
                 }
-                # Gaze vector: iris offset from eye geometric centre, normalised
-                kps_px_local = meta['keypoints_face'][:, :2] * np.array([W, H])
-                for eye_name, iris_xy, eye_idx in (
-                    ('right', (rix, riy), _RIGHT_EYE_IDX),
-                    ('left',  (lix, liy), _LEFT_EYE_IDX),
-                ):
-                    geo = np.mean(kps_px_local[eye_idx], axis=0)
-                    dx = iris_xy[0] - float(geo[0])
-                    dy = iris_xy[1] - float(geo[1])
-                    norm = max(np.hypot(dx, dy), 1e-6)
-                    iris_result[f'{eye_name}_gaze'] = {
-                        'dx': round(dx / norm, 4),
-                        'dy': round(dy / norm, 4),
-                    }
+                gaze_bs = mp_result.get('gaze_blendshape')
+                if gaze_bs is not None:
+                    # Blend-shape path: rescale yaw/pitch to user-tuned max
+                    # angles (defaults already factor in MAX_GAZE_*_RAD,
+                    # so divide by them and remultiply by the new max).
+                    base_yaw = _gaze_bs.MAX_GAZE_YAW_RAD if _gaze_bs else 1.0
+                    base_pitch = _gaze_bs.MAX_GAZE_PITCH_RAD if _gaze_bs else 1.0
+                    for eye_name in ('right', 'left'):
+                        e = dict(gaze_bs[eye_name])
+                        e['yaw_rad'] = float(e['yaw_rad']) / max(base_yaw, 1e-6) * max_yaw_rad
+                        e['pitch_rad'] = float(e['pitch_rad']) / max(base_pitch, 1e-6) * max_pitch_rad
+                        e['source'] = 'blendshape'
+                        # Recompute dx/dy from the rescaled angles so the
+                        # debug arrow length scales with actual rotation.
+                        dx = -math.sin(e['yaw_rad'])
+                        dy = -math.sin(e['pitch_rad'])
+                        n = math.hypot(dx, dy)
+                        if n > 1e-6:
+                            e['dx'] = round(dx / n, 4)
+                            e['dy'] = round(dy / n, 4)
+                        else:
+                            e['dx'] = 0.0
+                            e['dy'] = 0.0
+                        e['magnitude'] = float(math.hypot(e['yaw_rad'], e['pitch_rad']))
+                        iris_result[f'{eye_name}_gaze'] = e
+                    iris_result['blendshapes'] = mp_result.get('blendshapes', {})
+                else:
+                    # Legacy fallback: 2D iris-offset gaze (kept for
+                    # backward compatibility when blend shapes are off).
+                    kps_px_local = meta['keypoints_face'][:, :2] * np.array([W, H])
+                    for eye_name, iris_xy, eye_idx in (
+                        ('right', (rix, riy), _RIGHT_EYE_IDX),
+                        ('left',  (lix, liy), _LEFT_EYE_IDX),
+                    ):
+                        geo = np.mean(kps_px_local[eye_idx], axis=0)
+                        dx = iris_xy[0] - float(geo[0])
+                        dy = iris_xy[1] - float(geo[1])
+                        norm = max(np.hypot(dx, dy), 1e-6)
+                        iris_result[f'{eye_name}_gaze'] = {
+                            'dx': round(dx / norm, 4),
+                            'dy': round(dy / norm, 4),
+                            'yaw_rad': 0.0,
+                            'pitch_rad': 0.0,
+                            'source': 'iris_offset_2d',
+                        }
                 all_iris.append(iris_result)
                 all_lip_ratios.append(float(mp_result['lip_openness_ratio']))
             else:
@@ -1043,16 +1196,19 @@ class PoseAndFaceDetectionV2:
                 iris_result = estimate_iris_positions(
                     meta['keypoints_face'], images_np[idx], W, H,
                 )
+                iris_result['source'] = 'pupil_voter'
                 all_iris.append(iris_result)
                 all_lip_ratios.append(0.0)
 
-        if mp_enabled:
+        if mp_enabled or bs_enabled:
             logging.getLogger(__name__).info(
-                "MediaPipe FaceMesh succeeded on %d/%d frames (%.1f%%)",
+                "Face mesh: %d/%d frames (%.1f%%); blend-shape gaze: %d/%d frames (%.1f%%)",
                 mp_used_count, B, 100.0 * mp_used_count / max(B, 1),
+                bs_used_count, B, 100.0 * bs_used_count / max(B, 1),
             )
 
-        # --- Temporal smoothing for iris positions ---
+        # --- Temporal smoothing ---
+        # Iris pixel positions: simple EMA (kept; helps debug overlay).
         if use_iris_smoothing and len(all_iris) > 1:
             strength = float(np.clip(iris_smoothing_strength, 0.0, 1.0))
             for eye_key in ('right_iris', 'left_iris'):
@@ -1064,6 +1220,39 @@ class PoseAndFaceDetectionV2:
                     cur['x'] = alpha * cur['x'] + strength * prev_x
                     cur['y'] = alpha * cur['y'] + strength * prev_y
                     prev_x, prev_y = cur['x'], cur['y']
+
+        # Gaze yaw/pitch: one-euro filter per eye (low-lag, kills jitter).
+        if bs_used_count > 0 and _GAZE_BS_IMPORTED and _gaze_bs is not None:
+            try:
+                fps_est = 30.0
+                smoother = _gaze_bs.GazeStreamSmoother(
+                    fps=fps_est,
+                    min_cutoff=float(gaze_one_euro_min_cutoff),
+                    beta=float(gaze_one_euro_beta),
+                )
+                for fr in all_iris:
+                    rg = fr.get('right_gaze')
+                    lg = fr.get('left_gaze')
+                    if not (isinstance(rg, dict) and isinstance(lg, dict)
+                            and 'yaw_rad' in rg and 'yaw_rad' in lg):
+                        continue
+                    smoothed = smoother.step({
+                        'left':  {'yaw_rad': float(lg['yaw_rad']),
+                                  'pitch_rad': float(lg['pitch_rad'])},
+                        'right': {'yaw_rad': float(rg['yaw_rad']),
+                                  'pitch_rad': float(rg['pitch_rad'])},
+                    })
+                    for side, key in (('right', 'right_gaze'), ('left', 'left_gaze')):
+                        e = fr[key]
+                        e['yaw_rad'] = smoothed[side]['yaw_rad']
+                        e['pitch_rad'] = smoothed[side]['pitch_rad']
+                        e['dx'] = smoothed[side]['dx']
+                        e['dy'] = smoothed[side]['dy']
+                        e['magnitude'] = smoothed[side]['magnitude']
+            except Exception as _exc:
+                logging.getLogger(__name__).warning(
+                    "Gaze one-euro smoothing failed (%s); using raw values.", _exc,
+                )
 
         # Build per-frame iris output
         iris_output = []

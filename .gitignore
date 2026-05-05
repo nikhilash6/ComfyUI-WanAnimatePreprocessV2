@@ -13,3 +13,5 @@ convert_*
 *.pt
 models/yolo_debug.log
 
+models/mediapipe/
+*.task
